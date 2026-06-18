@@ -1,22 +1,29 @@
 import { NextResponse } from "next/server"
 
-import { runResearch } from "@/lib/researcher"
-import { agentStore } from "@/lib/store"
+import { agentRepository } from "@/lib/agent-repository"
+import { startResearch } from "@/lib/research-engine"
 
 type Params = { params: Promise<{ id: string }> }
 
 export async function POST(_request: Request, { params }: Params) {
   const { id } = await params
-  const agent = agentStore.get(id)
+  const agent = agentRepository.get(id)
 
   if (!agent) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
-  const reset = { ...agent, status: "running" as const, progress: 0, result: undefined }
-  agentStore.set(id, reset)
+  // Reset to a fresh running state, dropping any prior session/result.
+  const reset =
+    agentRepository.update(id, {
+      status: "running",
+      progress: 0,
+      result: undefined,
+      eveSessionId: undefined,
+      continuationToken: undefined,
+      usage: undefined,
+    }) ?? agent
 
-  runResearch(reset)
-
-  return NextResponse.json(reset)
+  const started = await startResearch(reset)
+  return NextResponse.json(started)
 }

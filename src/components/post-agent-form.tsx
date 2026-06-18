@@ -37,34 +37,37 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import type { ExperienceLevel } from "@/lib/types"
+import { categoryGroups as catalogGroups } from "@/lib/agent-catalog"
+import {
+  DEFAULT_MODEL_PROVIDER,
+  MODEL_PROVIDERS,
+} from "@/lib/model-providers"
+import type { ExperienceLevel, ModelProvider } from "@/lib/types"
 
-const categoryGroups: DropdownGroup[] = [
-  {
-    label: "Market intelligence",
-    options: [
-      { value: "Market Analysis", label: "Market Analysis", icon: <TrendingUpIcon className="size-3.5" /> },
-      { value: "Trading Signals", label: "Trading Signals", icon: <ActivityIcon className="size-3.5" />, comingSoon: true },
-      { value: "Macro & Economics", label: "Macro & Economics", icon: <GlobeIcon className="size-3.5" />, comingSoon: true },
-    ],
-  },
-  {
-    label: "Crypto research",
-    options: [
-      { value: "Token Research", label: "Token Research", icon: <CoinsIcon className="size-3.5" />, comingSoon: true },
-      { value: "On-Chain Analysis", label: "On-Chain Analysis", icon: <LinkIcon className="size-3.5" />, comingSoon: true },
-      { value: "DeFi Analysis", label: "DeFi Analysis", icon: <LayersIcon className="size-3.5" />, comingSoon: true },
-    ],
-  },
-  {
-    label: "Risk & portfolio",
-    options: [
-      { value: "Portfolio Analysis", label: "Portfolio Analysis", icon: <WalletIcon className="size-3.5" />, comingSoon: true },
-      { value: "Risk Assessment", label: "Risk Assessment", icon: <ShieldAlertIcon className="size-3.5" />, comingSoon: true },
-      { value: "Financial Reporting", label: "Financial Reporting", icon: <ChartLineIcon className="size-3.5" />, comingSoon: true },
-    ],
-  },
-]
+// Map the catalog's icon names to lucide components.
+const ICONS: Record<string, React.ReactNode> = {
+  TrendingUp: <TrendingUpIcon className="size-3.5" />,
+  Activity: <ActivityIcon className="size-3.5" />,
+  Globe: <GlobeIcon className="size-3.5" />,
+  Coins: <CoinsIcon className="size-3.5" />,
+  Link: <LinkIcon className="size-3.5" />,
+  Layers: <LayersIcon className="size-3.5" />,
+  Wallet: <WalletIcon className="size-3.5" />,
+  ShieldAlert: <ShieldAlertIcon className="size-3.5" />,
+  ChartLine: <ChartLineIcon className="size-3.5" />,
+}
+
+// Single source of truth: derive the dropdown from the shared agent catalog so
+// enabling a category is a one-place flip in src/lib/agent-catalog.ts.
+const categoryGroups: DropdownGroup[] = catalogGroups().map((group) => ({
+  label: group.label,
+  options: group.options.map((option) => ({
+    value: option.value,
+    label: option.label,
+    icon: ICONS[option.icon],
+    ...(option.enabled ? {} : { comingSoon: true }),
+  })),
+}))
 
 const experienceLevels: DropdownOption[] = [
   {
@@ -81,10 +84,18 @@ const experienceLevels: DropdownOption[] = [
   },
 ]
 
+const modelProviderOptions: DropdownOption[] = MODEL_PROVIDERS.map((p) => ({
+  value: p.value,
+  label: p.label,
+  description: p.description,
+  indicatorClassName: p.indicatorClassName,
+}))
+
 export function PostAgentForm() {
   const router = useRouter()
   const [category, setCategory] = useState<string | null>("Market Analysis")
   const [experience, setExperience] = useState<string | null>(null)
+  const [modelProvider, setModelProvider] = useState<string | null>(DEFAULT_MODEL_PROVIDER)
   const [schedule, setSchedule] = useState<AgentSchedule>({ type: "once" })
   const [output, setOutput] = useState<AgentOutput>({ destination: "dashboard" })
   const [launching, setLaunching] = useState(false)
@@ -92,7 +103,7 @@ export function PostAgentForm() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!category || !experience || !isScheduleValid(schedule) || !isOutputValid(output)) {
+    if (!category || !experience || !modelProvider || !isScheduleValid(schedule) || !isOutputValid(output)) {
       toast.error("Please fill in all required fields")
       return
     }
@@ -112,6 +123,7 @@ export function PostAgentForm() {
           description,
           category,
           experience: experience as ExperienceLevel,
+          modelProvider: modelProvider as ModelProvider,
         }),
       })
 
@@ -171,6 +183,20 @@ export function PostAgentForm() {
                 options={experienceLevels}
                 compact
               />
+
+              <FormDropdown
+                id="model"
+                label="Model"
+                placeholder="Select model"
+                value={modelProvider}
+                onValueChange={setModelProvider}
+                options={modelProviderOptions}
+                compact
+              />
+              <p className="text-[0.7rem] text-muted-foreground sm:col-span-2">
+                Kimi uses the original single-pipeline researcher. Other runs the Groq + Eve
+                multi-agent stack.
+              </p>
             </div>
 
             <div className="flex flex-col gap-1.5">

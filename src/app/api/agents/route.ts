@@ -1,38 +1,43 @@
 import { NextResponse } from "next/server"
 
-import { runResearch } from "@/lib/researcher"
-import { agentStore, getAgentsSorted } from "@/lib/store"
-import type { Agent, ExperienceLevel } from "@/lib/types"
+import { agentRepository } from "@/lib/agent-repository"
+import { checkCreate, commitRun, getClientIp } from "@/lib/guards"
+import { startResearch } from "@/lib/research-engine"
+import type { Agent } from "@/lib/types"
 
 export function GET() {
-  return NextResponse.json(getAgentsSorted())
+  return NextResponse.json(agentRepository.list())
 }
 
 export async function POST(request: Request) {
-  const body = await request.json() as {
-    name: string
-    description: string
-    category: string
-    experience: ExperienceLevel
+  const body = await request.json().catch(() => null)
+
+  const ip = getClientIp(request)
+  const check = checkCreate(ip, body)
+  if (!check.ok) {
+    return NextResponse.json({ error: check.error }, { status: check.status })
   }
 
+  const { name, description, category, experience, modelProvider } = check.data
   const id = crypto.randomUUID()
 
   const agent: Agent = {
     id,
-    name: body.name,
-    description: body.description,
-    category: body.category,
-    experience: body.experience,
+    name,
+    description,
+    category,
+    experience,
+    modelProvider,
     progress: 0,
     status: "running",
     createdAt: Date.now(),
+    ownerId: null, // anonymous public job until auth lands
   }
 
-  agentStore.set(id, agent)
+  agentRepository.create(agent)
+  commitRun(ip, experience)
 
-  // Start background research — does not block the response
-  runResearch(agent)
+  const started = await startResearch(agent)
 
-  return NextResponse.json(agent, { status: 201 })
+  return NextResponse.json(started, { status: 201 })
 }

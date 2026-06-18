@@ -1,16 +1,15 @@
+import { agentJobsMap, agentRepository } from "@/lib/agent-repository"
 import type { Agent } from "@/lib/types"
 
-// Bump the version suffix to force a fresh store (clears old seeded data)
-const g = globalThis as typeof globalThis & {
-  __agentStore_v3?: Map<string, Agent>
-}
-
-if (!g.__agentStore_v3) {
-  g.__agentStore_v3 = new Map()
-}
-
-export const agentStore = g.__agentStore_v3
+/**
+ * Backwards-compatible shim over the repository seam.
+ *
+ * `agentStore` is the same underlying map the repository uses, kept only so the
+ * legacy researcher.ts (RESEARCH_MODE=legacy) can read/write jobs directly. All
+ * new code should use `agentRepository` from "@/lib/agent-repository".
+ */
+export const agentStore = agentJobsMap
 
 export function getAgentsSorted(): Agent[] {
-  return Array.from(agentStore.values()).sort((a, b) => b.createdAt - a.createdAt)
+  return agentRepository.list()
 }

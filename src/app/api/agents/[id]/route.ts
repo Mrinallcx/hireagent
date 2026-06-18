@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server"
 
-import { agentStore } from "@/lib/store"
+import { agentRepository } from "@/lib/agent-repository"
+import { cancelSession } from "@/lib/eve-client"
 
 type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_request: Request, { params }: Params) {
   const { id } = await params
-  const agent = agentStore.get(id)
+  const agent = agentRepository.get(id)
 
   if (!agent) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -17,11 +18,16 @@ export async function GET(_request: Request, { params }: Params) {
 
 export async function DELETE(_request: Request, { params }: Params) {
   const { id } = await params
-  const deleted = agentStore.delete(id)
+  const agent = agentRepository.get(id)
 
-  if (!deleted) {
+  if (!agent) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
+  if (agent.eveSessionId) {
+    await cancelSession(agent.eveSessionId).catch(() => {})
+  }
+
+  agentRepository.delete(id)
   return NextResponse.json({ success: true })
 }

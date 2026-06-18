@@ -1,12 +1,12 @@
 import { resolveMarketChart } from "@/lib/market-chart"
-import { agentStore } from "@/lib/store"
+import { agentRepository } from "@/lib/agent-repository"
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const agent = agentStore.get(id)
+  const agent = agentRepository.get(id)
 
   if (!agent) {
     return Response.json({ error: "Agent not found" }, { status: 404 })
