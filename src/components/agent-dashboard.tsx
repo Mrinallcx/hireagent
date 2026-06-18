@@ -12,12 +12,10 @@ import type { Agent } from "@/lib/types"
 
 type AgentDashboardProps = {
   initialAgents: Agent[]
-  creditsRemaining?: number
 }
 
 export function AgentDashboard({
   initialAgents,
-  creditsRemaining = 2450,
 }: AgentDashboardProps) {
   const [agents, setAgents] = useState<Agent[]>(initialAgents)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
@@ -104,7 +102,6 @@ export function AgentDashboard({
       <DashboardToolbar
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
-        creditsRemaining={creditsRemaining}
         statusCounts={statusCounts}
       />
       <AgentCards

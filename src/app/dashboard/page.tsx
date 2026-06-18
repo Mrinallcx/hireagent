@@ -12,7 +12,7 @@ export default function Page() {
     <>
       <SiteHeader title="Agents" />
       <div className="flex flex-1 flex-col px-4 py-4 lg:px-6">
-        <AgentDashboard initialAgents={agents} creditsRemaining={2450} />
+        <AgentDashboard initialAgents={agents} />
       </div>
     </>
   )

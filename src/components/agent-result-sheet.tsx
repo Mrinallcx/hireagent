@@ -2,20 +2,32 @@
 
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { CheckCircle2Icon, ClockIcon, ExternalLinkIcon } from "lucide-react"
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  BookOpenIcon,
+  CheckCircle2Icon,
+  ClockIcon,
+  ExternalLinkIcon,
+  FileTextIcon,
+  LayoutDashboardIcon,
+  LinkIcon,
+  MinusIcon,
+  SparklesIcon,
+} from "lucide-react"
 
-import type { Agent } from "@/lib/types"
+import type { Agent, AgentResultMetric, AgentResultSource } from "@/lib/types"
+import { AgentResultChartPanel } from "@/components/agent-result-chart"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { cn } from "@/lib/utils"
 
-// Re-export for any code that still imports these from here
 export type { AgentResult, AgentResultMetric, AgentResultSource } from "@/lib/types"
 
 const sourceTypeLabel: Record<string, string> = {
@@ -26,10 +38,208 @@ const sourceTypeLabel: Record<string, string> = {
 }
 
 const sourceTypeClass: Record<string, string> = {
-  news: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300",
-  filing: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300",
-  data: "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300",
-  doc: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300",
+  news: "border-sky-200/80 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/80 dark:text-sky-300",
+  filing: "border-amber-200/80 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/80 dark:text-amber-300",
+  data: "border-violet-200/80 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/80 dark:text-violet-300",
+  doc: "border-emerald-200/80 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-300",
+}
+
+const tierClass: Record<string, string> = {
+  Intern: "border-sky-200/80 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950/60 dark:text-sky-300",
+  King: "border-amber-200/80 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-300",
+}
+
+function parseSearchCount(summary: string): number | null {
+  const match = summary.match(/\((\d+)\s+web searches?\)/i)
+  return match ? Number(match[1]) : null
+}
+
+function cleanSummary(summary: string): string {
+  return summary.replace(/\s*\(\d+\s+web searches?\)/i, "").trim()
+}
+
+function metricTone(change?: string): "up" | "down" | "neutral" {
+  if (!change) return "neutral"
+  const c = change.toLowerCase()
+  if (c.includes("oversold") || c.includes("fear") || c.includes("sell") || c.includes("bear")) {
+    return "down"
+  }
+  if (c.includes("buy") || c.includes("bull") || c.includes("greed") || c.startsWith("+")) {
+    return "up"
+  }
+  if (c.startsWith("-") || c.includes("outflow") || c.includes("decline")) {
+    return "down"
+  }
+  return "neutral"
+}
+
+function MetricChange({ change }: { change?: string }) {
+  if (!change) return null
+  const tone = metricTone(change)
+  const Icon =
+    tone === "up" ? ArrowUpIcon : tone === "down" ? ArrowDownIcon : MinusIcon
+
+  return (
+    <span
+      className={cn(
+        "mt-1 inline-flex items-center gap-0.5 text-[0.65rem] font-medium",
+        tone === "up" && "text-emerald-600 dark:text-emerald-400",
+        tone === "down" && "text-red-600 dark:text-red-400",
+        tone === "neutral" && "text-muted-foreground"
+      )}
+    >
+      <Icon className="size-2.5" />
+      {change}
+    </span>
+  )
+}
+
+function MetricsGrid({ metrics }: { metrics: AgentResultMetric[] }) {
+  const [hero, ...rest] = metrics
+
+  return (
+    <div className="space-y-3">
+      {hero ? (
+        <div className="rounded-xl border bg-linear-to-br from-muted/40 to-muted/10 p-4">
+          <p className="text-xs font-medium text-muted-foreground">{hero.label}</p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">
+            {hero.value}
+          </p>
+          <MetricChange change={hero.change} />
+        </div>
+      ) : null}
+      {rest.length > 0 ? (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {rest.map((metric) => (
+            <div
+              key={metric.label}
+              className="rounded-lg border bg-card px-3 py-2.5 shadow-xs"
+            >
+              <p className="text-[0.65rem] font-medium text-muted-foreground">
+                {metric.label}
+              </p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums leading-tight">
+                {metric.value}
+              </p>
+              <MetricChange change={metric.change} />
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function HighlightsList({ highlights }: { highlights: string[] }) {
+  return (
+    <ol className="space-y-2">
+      {highlights.map((item, index) => (
+        <li
+          key={item}
+          className="flex gap-3 rounded-lg border border-l-2 border-l-emerald-500/70 bg-card px-3 py-2.5 text-sm leading-relaxed shadow-xs"
+        >
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[0.65rem] font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+            {index + 1}
+          </span>
+          <span className="text-foreground/90">{item}</span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+function SourcesList({ sources }: { sources: AgentResultSource[] }) {
+  return (
+    <ul className="grid gap-2 sm:grid-cols-2">
+      {sources.map((source) => (
+        <li key={source.url}>
+          <a
+            href={source.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex h-full flex-col gap-2 rounded-xl border bg-card p-3 transition-colors hover:border-foreground/15 hover:bg-muted/30"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <Badge
+                variant="outline"
+                className={cn(
+                  "h-5 shrink-0 px-1.5 text-[0.6rem]",
+                  sourceTypeClass[source.type] ?? ""
+                )}
+              >
+                {sourceTypeLabel[source.type] ?? source.type}
+              </Badge>
+              <ExternalLinkIcon className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+            </div>
+            <p className="line-clamp-2 text-sm font-medium leading-snug text-foreground">
+              {source.title}
+            </p>
+            <p className="truncate text-[0.65rem] text-muted-foreground">
+              {source.url.replace(/^https?:\/\/(www\.)?/, "")}
+            </p>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+const markdownComponents = {
+  h1: ({ children }: { children?: React.ReactNode }) => (
+    <h1 className="mt-8 mb-4 text-lg font-bold tracking-tight text-foreground first:mt-0">
+      {children}
+    </h1>
+  ),
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <h2 className="mt-7 mb-3 border-b border-border/60 pb-2 text-base font-semibold text-foreground first:mt-0">
+      {children}
+    </h2>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 className="mt-5 mb-2 text-sm font-semibold text-foreground">{children}</h3>
+  ),
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className="mb-3 text-[0.9rem] leading-7 text-foreground/88 last:mb-0">
+      {children}
+    </p>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className="mb-4 list-disc space-y-1.5 pl-5">{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol className="mb-4 list-decimal space-y-1.5 pl-5">{children}</ol>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li className="text-[0.9rem] leading-relaxed text-foreground/88">{children}</li>
+  ),
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-semibold text-foreground">{children}</strong>
+  ),
+  table: ({ children }: { children?: React.ReactNode }) => (
+    <div className="mb-5 overflow-x-auto rounded-xl border shadow-xs">
+      <table className="w-full min-w-[480px] text-sm">{children}</table>
+    </div>
+  ),
+  thead: ({ children }: { children?: React.ReactNode }) => (
+    <thead className="bg-muted/60">{children}</thead>
+  ),
+  tbody: ({ children }: { children?: React.ReactNode }) => (
+    <tbody className="divide-y divide-border/60">{children}</tbody>
+  ),
+  th: ({ children }: { children?: React.ReactNode }) => (
+    <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground">
+      {children}
+    </th>
+  ),
+  td: ({ children }: { children?: React.ReactNode }) => (
+    <td className="px-3 py-2.5 text-xs text-foreground/90">{children}</td>
+  ),
+  hr: () => <hr className="my-6 border-border/60" />,
+  blockquote: ({ children }: { children?: React.ReactNode }) => (
+    <blockquote className="my-4 rounded-r-lg border-l-4 border-amber-400/60 bg-amber-50/50 py-1 pl-4 text-sm italic text-foreground/75 dark:bg-amber-950/20">
+      {children}
+    </blockquote>
+  ),
 }
 
 type AgentResultSheetProps = {
@@ -46,204 +256,130 @@ export function AgentResultSheet({
   if (!agent?.result) return null
 
   const { result } = agent
+  const searchCount = parseSearchCount(result.summary)
+  const summaryText = cleanSummary(result.summary)
+  const sourceCount = result.sources?.length ?? 0
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="top-0 right-0 bottom-0 flex h-svh max-h-svh min-h-svh w-full flex-col gap-0 overflow-hidden p-0 sm:w-[70vw] sm:max-w-none"
+        style={{ width: "min(64vw, 58rem)", maxWidth: "none" }}
+        className="top-0 right-0 bottom-0 flex h-svh max-h-svh min-h-svh flex-col gap-0 overflow-hidden border-l p-0 data-[side=right]:max-w-none"
       >
-        <SheetHeader className="shrink-0 border-b px-6 py-5">
-          <div className="flex items-start gap-3 pr-8">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950">
-              <CheckCircle2Icon className="size-4 text-emerald-600 dark:text-emerald-400" />
+        <SheetHeader className="shrink-0 space-y-0 border-b bg-muted/20 px-5 py-4 sm:px-6">
+          <div className="flex items-start gap-3 pr-6">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/80">
+              <CheckCircle2Icon className="size-5 text-emerald-600 dark:text-emerald-400" />
             </span>
-            <div className="min-w-0 space-y-1">
-              <SheetTitle className="text-left leading-snug">
+            <div className="min-w-0 flex-1 space-y-2">
+              <SheetTitle className="text-left text-base leading-snug sm:text-lg">
                 {agent.name}
               </SheetTitle>
-              <SheetDescription className="text-left">
-                {result.summary}
-              </SheetDescription>
-              <div className="flex flex-wrap items-center gap-3 pt-1">
-                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <ClockIcon className="size-3" />
-                  Completed {result.completedAt}
-                </span>
+              <div className="flex flex-wrap items-center gap-1.5">
                 <Badge
                   variant="outline"
-                  className="h-5 gap-1 px-1.5 text-[0.65rem] border-muted-foreground/20 text-muted-foreground"
+                  className={cn("h-5 gap-1 px-2 text-[0.65rem]", tierClass[agent.experience])}
                 >
-                  {agent.experience} tier
+                  <SparklesIcon className="size-3" />
+                  {agent.experience}
                 </Badge>
+                <Badge variant="outline" className="h-5 gap-1 px-2 text-[0.65rem] text-muted-foreground">
+                  <ClockIcon className="size-3" />
+                  {result.completedAt}
+                </Badge>
+                {searchCount !== null ? (
+                  <Badge variant="outline" className="h-5 px-2 text-[0.65rem] text-muted-foreground">
+                    {searchCount} searches
+                  </Badge>
+                ) : null}
               </div>
             </div>
           </div>
+
+          <div className="mt-4 rounded-xl border bg-card px-4 py-3 shadow-xs">
+            <p className="text-[0.65rem] font-medium tracking-wide text-muted-foreground uppercase">
+              Executive summary
+            </p>
+            <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">
+              {summaryText}
+            </p>
+          </div>
         </SheetHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5 pb-8">
-          {result.metrics && result.metrics.length > 0 ? (
-            <section className="space-y-3">
-              <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Key metrics
-              </h3>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {result.metrics.map((metric) => (
-                  <div
-                    key={metric.label}
-                    className="rounded-lg border bg-muted/30 px-3 py-2.5"
-                  >
-                    <p className="text-xs text-muted-foreground">{metric.label}</p>
-                    <p className="mt-0.5 text-sm font-semibold tabular-nums">
-                      {metric.value}
-                    </p>
-                    {metric.change ? (
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {metric.change}
-                      </p>
-                    ) : null}
-                  </div>
-                ))}
+        <Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
+          <div className="shrink-0 border-b px-5 py-2 sm:px-6">
+            <TabsList className="h-9 w-full">
+              <TabsTrigger value="overview" className="flex-1 gap-1.5 text-xs sm:text-sm">
+                <LayoutDashboardIcon className="size-3.5" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="report" className="flex-1 gap-1.5 text-xs sm:text-sm">
+                <FileTextIcon className="size-3.5" />
+                Report
+              </TabsTrigger>
+              <TabsTrigger value="sources" className="flex-1 gap-1.5 text-xs sm:text-sm">
+                <LinkIcon className="size-3.5" />
+                Sources
+                {sourceCount > 0 ? (
+                  <span className="rounded-full bg-muted px-1.5 text-[0.6rem] tabular-nums">
+                    {sourceCount}
+                  </span>
+                ) : null}
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <TabsContent value="overview" className="mt-0 px-5 py-4 sm:px-6">
+              <div className="space-y-6">
+                <AgentResultChartPanel agentId={agent.id} />
+
+                {result.metrics && result.metrics.length > 0 ? (
+                  <section className="space-y-2">
+                    <h3 className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                      <LayoutDashboardIcon className="size-3.5" />
+                      Key metrics
+                    </h3>
+                    <MetricsGrid metrics={result.metrics} />
+                  </section>
+                ) : null}
+
+                {result.highlights && result.highlights.length > 0 ? (
+                  <section className="space-y-2">
+                    <h3 className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                      <BookOpenIcon className="size-3.5" />
+                      Highlights
+                    </h3>
+                    <HighlightsList highlights={result.highlights} />
+                  </section>
+                ) : null}
               </div>
-            </section>
-          ) : null}
+            </TabsContent>
 
-          {result.highlights && result.highlights.length > 0 ? (
-            <section className="space-y-3">
-              <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Highlights
-              </h3>
-              <ul className="space-y-2">
-                {result.highlights.map((item) => (
-                  <li
-                    key={item}
-                    className="flex gap-2 text-sm leading-relaxed text-foreground"
-                  >
-                    <span className="mt-2 size-1 shrink-0 rounded-full bg-emerald-500" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
+            <TabsContent value="report" className="mt-0 px-5 py-4 sm:px-6">
+              <article className="rounded-xl border bg-card px-4 py-5 shadow-xs sm:px-6">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {result.analysis}
+                </ReactMarkdown>
+              </article>
+              <p className="mt-4 text-center text-[0.65rem] leading-relaxed text-muted-foreground">
+                Research only — not investment advice. Verify figures against primary sources.
+              </p>
+            </TabsContent>
 
-          <Separator />
-
-          <section className="space-y-3">
-            <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Full analysis
-            </h3>
-            <div className="rounded-lg border bg-card p-4 sm:p-5">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  h1: ({ children }) => (
-                    <h1 className="mt-6 mb-3 text-base font-bold text-foreground first:mt-0">{children}</h1>
-                  ),
-                  h2: ({ children }) => (
-                    <h2 className="mt-5 mb-2.5 text-sm font-semibold text-foreground first:mt-0 border-b pb-1">{children}</h2>
-                  ),
-                  h3: ({ children }) => (
-                    <h3 className="mt-4 mb-2 text-sm font-semibold text-foreground">{children}</h3>
-                  ),
-                  p: ({ children }) => (
-                    <p className="mb-3 text-sm leading-7 text-foreground/90 last:mb-0">{children}</p>
-                  ),
-                  ul: ({ children }) => (
-                    <ul className="mb-3 space-y-1.5 pl-4">{children}</ul>
-                  ),
-                  ol: ({ children }) => (
-                    <ol className="mb-3 space-y-1.5 pl-4 list-decimal">{children}</ol>
-                  ),
-                  li: ({ children }) => (
-                    <li className="text-sm leading-relaxed text-foreground/90 list-disc">{children}</li>
-                  ),
-                  strong: ({ children }) => (
-                    <strong className="font-semibold text-foreground">{children}</strong>
-                  ),
-                  em: ({ children }) => (
-                    <em className="italic text-foreground/80">{children}</em>
-                  ),
-                  table: ({ children }) => (
-                    <div className="mb-4 overflow-x-auto rounded-lg border">
-                      <table className="w-full text-sm">{children}</table>
-                    </div>
-                  ),
-                  thead: ({ children }) => (
-                    <thead className="bg-muted/50">{children}</thead>
-                  ),
-                  tbody: ({ children }) => (
-                    <tbody className="divide-y">{children}</tbody>
-                  ),
-                  tr: ({ children }) => (
-                    <tr className="divide-x">{children}</tr>
-                  ),
-                  th: ({ children }) => (
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">{children}</th>
-                  ),
-                  td: ({ children }) => (
-                    <td className="px-3 py-2 text-xs text-foreground/90">{children}</td>
-                  ),
-                  hr: () => <hr className="my-4 border-border" />,
-                  blockquote: ({ children }) => (
-                    <blockquote className="my-3 border-l-2 border-muted-foreground/30 pl-4 text-sm italic text-foreground/70">{children}</blockquote>
-                  ),
-                  code: ({ children, className }) => {
-                    const isBlock = className?.includes("language-")
-                    return isBlock ? (
-                      <pre className="mb-3 overflow-x-auto rounded-md bg-muted px-4 py-3 text-xs">
-                        <code>{children}</code>
-                      </pre>
-                    ) : (
-                      <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono">{children}</code>
-                    )
-                  },
-                }}
-              >
-                {result.analysis}
-              </ReactMarkdown>
-            </div>
-          </section>
-
-          {result.sources && result.sources.length > 0 ? (
-            <section className="space-y-3">
-              <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Sources ({result.sources.length})
-              </h3>
-              <ul className="space-y-1.5">
-                {result.sources.map((source) => (
-                  <li key={source.url}>
-                    <a
-                      href={source.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2.5 rounded-lg border bg-card px-3 py-2 text-sm transition-colors hover:bg-muted/40"
-                    >
-                      <Badge
-                        variant="outline"
-                        className={`h-4 shrink-0 px-1.5 text-[0.6rem] ${sourceTypeClass[source.type] ?? ""}`}
-                      >
-                        {sourceTypeLabel[source.type] ?? source.type}
-                      </Badge>
-                      <span className="min-w-0 flex-1 truncate text-foreground">
-                        {source.title}
-                      </span>
-                      <ExternalLinkIcon className="size-3 shrink-0 text-muted-foreground" />
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
-          <Badge
-            variant="outline"
-            className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
-          >
-            <CheckCircle2Icon className="size-3" />
-            Run completed successfully
-          </Badge>
-        </div>
+            <TabsContent value="sources" className="mt-0 px-5 py-4 sm:px-6">
+              {result.sources && result.sources.length > 0 ? (
+                <SourcesList sources={result.sources} />
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-12 text-center">
+                  <LinkIcon className="size-8 text-muted-foreground/40" />
+                  <p className="mt-2 text-sm text-muted-foreground">No sources cited</p>
+                </div>
+              )}
+            </TabsContent>
+          </div>
+        </Tabs>
       </SheetContent>
     </Sheet>
   )

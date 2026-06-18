@@ -13,6 +13,18 @@ export type AgentResultSource = {
   type: "news" | "filing" | "data" | "doc"
 }
 
+export type AgentResultChartPoint = {
+  date: string
+  price: number
+}
+
+export type AgentResultChart = {
+  symbol: string
+  label: string
+  currency?: string
+  data: AgentResultChartPoint[]
+}
+
 export type AgentResult = {
   summary: string
   completedAt: string
@@ -20,6 +32,8 @@ export type AgentResult = {
   highlights?: string[]
   analysis: string
   sources?: AgentResultSource[]
+  chartSymbol?: string
+  chart?: AgentResultChart
 }
 
 export type Agent = {

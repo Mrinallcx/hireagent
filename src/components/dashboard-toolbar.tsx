@@ -3,7 +3,6 @@
 import {
   CheckCircle2Icon,
   CircleAlertIcon,
-  CoinsIcon,
   LayoutGridIcon,
   ListFilterIcon,
   LoaderIcon,
@@ -103,20 +102,18 @@ function FilterOption({
 type DashboardToolbarProps = {
   statusFilter: StatusFilter
   onStatusFilterChange: (value: StatusFilter) => void
-  creditsRemaining: number
   statusCounts: Record<StatusFilter, number>
 }
 
 export function DashboardToolbar({
   statusFilter,
   onStatusFilterChange,
-  creditsRemaining,
   statusCounts,
 }: DashboardToolbarProps) {
   const selected = getStatusOption(statusFilter)
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3">
       <div className="flex w-56 flex-col gap-1.5">
         <Label
           htmlFor="status-filter"
@@ -177,18 +174,6 @@ export function DashboardToolbar({
               ))}
             </SelectContent>
         </Select>
-      </div>
-
-      <div
-        title="Credits"
-        className="flex h-9 items-center gap-2 self-end rounded-lg border border-amber-200/80 bg-linear-to-r from-amber-50 to-orange-50 px-3 shadow-xs sm:self-auto dark:border-amber-900/50 dark:from-amber-950/40 dark:to-orange-950/30"
-      >
-        <span className="flex size-6 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/60">
-          <CoinsIcon className="size-3.5 text-amber-700 dark:text-amber-400" />
-        </span>
-        <span className="text-sm font-semibold tabular-nums tracking-tight text-amber-950 dark:text-amber-100">
-          {creditsRemaining.toLocaleString()}
-        </span>
       </div>
     </div>
   )
